@@ -1,0 +1,15 @@
+# Legacy local configuration
+/.config/
+
+# Personal data
+subscriptions
+
+# Generated thumbnail cache
+thumbnails/
+*.jpg
+*.png
+
+# Local binaries / temporary files
+ytfzf-prime-bin
+*.bak
+*.tmp

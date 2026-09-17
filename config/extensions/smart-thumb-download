@@ -1,0 +1,35 @@
+#!/bin/sh
+
+download_thumbnails () {
+    [ "$skip_thumb_download" -eq 1 ] && {
+        print_info "Skipping thumbnail download\n"
+        return 0
+    }
+
+    [ "$async_thumbnails" -eq 0 ] &&
+        print_info 'Fetching thumbnails...\n'
+
+    curl_config_file="${session_temp_dir}/curl_config"
+
+    [ -z "$*" ] && return 0
+
+    : > "$curl_config_file"
+
+    for line in "$@"; do
+        _url="${line%%;*}"
+        _id="${line##*;}"
+
+        [ -f "${YTFZF_CUSTOM_THUMBNAILS_DIR}/${_id}.jpg" ] &&
+            continue
+
+        printf 'url="%s"\noutput="%s/%s.jpg"\n' \
+            "$_url" \
+            "$YTFZF_CUSTOM_THUMBNAILS_DIR" \
+            "$_id"
+    done >> "$curl_config_file"
+
+    [ -s "$curl_config_file" ] || return 0
+    curl -sfLZ -K "$curl_config_file" 2>/dev/null
+    [ $? -eq 2 ] &&
+	    curl -sfL -K "$curl_config_file" 2>/dev/null
+}

@@ -1,0 +1,135 @@
+#!/bin/sh
+
+scrape_subs_ytdlp() {
+    output_json_file="$2"
+
+    if [ ! -f "$YTFZF_SUBSCRIPTIONS_FILE" ]; then
+        print_error "No existe $YTFZF_SUBSCRIPTIONS_FILE"
+        return 1
+    fi
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Quitar comentarios y espacios
+        sub="${line%%#*}"
+        sub="$(printf '%s' "$sub" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
+        [ -z "$sub" ] && continue
+
+        # @canal -> URL de vídeos
+        case "$sub" in
+            http://*|https://*)
+                case "$sub" in
+                    */videos)
+                        channel_url="$sub"
+                        ;;
+                    *)
+                        channel_url="${sub%/}/videos"
+                        ;;
+                esac
+                ;;
+            @*)
+                channel_url="https://www.youtube.com/$sub/videos"
+                ;;
+            *)
+                channel_url="https://www.youtube.com/@$sub/videos"
+                ;;
+        esac
+
+        print_info "Scraping subscription with yt-dlp: $sub"
+
+        tmp_jsonl="${session_temp_dir}/subs-ytdlp-$$.jsonl"
+        tmp_array="${session_temp_dir}/subs-ytdlp-$$.json"
+
+        : > "$tmp_jsonl"
+
+        yt-dlp \
+            --flat-playlist \
+            --playlist-end "${sub_link_count:-2}" \
+            --dump-json \
+            --no-warnings \
+            "$channel_url" > "$tmp_jsonl"
+
+        if [ ! -s "$tmp_jsonl" ]; then
+            print_warning "No se pudieron obtener vídeos de $sub"
+            continue
+        fi
+
+    jq -s --arg sub "$sub" '
+            def pad2:
+                tostring |
+                if length == 1 then "0" + . else . end;
+
+            def duration_fmt:
+                if . == null then ""
+                else
+                    (floor) as $s |
+                    ($s / 3600 | floor) as $h |
+                    (($s % 3600) / 60 | floor) as $m |
+                    ($s % 60) as $sec |
+                    if $h > 0 then
+                        "\($h):\($m|pad2):\($sec|pad2)"
+                    else
+                        "\($m):\($sec|pad2)"
+                    end
+                end;
+
+            map(
+                select(.id != null) |
+                {
+                    scraper: "subs_ytdlp",
+                    ID: .id,
+                    url: ("https://www.youtube.com/watch?v=" + .id),
+                    title: (.title // "(sin título)"),
+                    channel: (
+                if (.channel // "") != "" then
+                    .channel
+                elif (.uploader // "") != "" then
+                    .uploader
+                else
+                    $sub
+                end
+            ),
+            thumbs: ("https://i.ytimg.com/vi/" + .id + "/hqdefault.jpg"),
+                    duration: (.duration | duration_fmt),
+                    views: ((.view_count // "") | tostring),
+                    date: (.upload_date // "")
+                }
+            )
+        ' "$tmp_jsonl" > "$tmp_array"
+
+        # Mantener el aspecto de --fancy-subs
+        if [ "${fancy_subs:-0}" -eq 1 ]; then
+            jq \
+                --arg left "${fancy_subs_left:-------------}" \
+                --arg right "${fancy_subs_right:-------------}" \
+        --arg sub "$sub" \
+                '
+                if length == 0 then
+                    []
+                else
+                    . as $videos |
+            (
+                if ($videos[0].channel // "") != "" then
+                    $videos[0].channel
+                else
+                    $sub
+                end
+            ) as $channel |
+                    ($left + $channel + $right) as $divider |
+            [{
+                scraper: "subs_ytdlp",
+                title: $divider,
+                action: "do-nothing",
+                url: $divider,
+                ID: ("subscriptions-channel:" + $channel)
+            }] + $videos
+                end
+                ' "$tmp_array" >> "$output_json_file"
+        else
+            cat "$tmp_array" >> "$output_json_file"
+        fi
+
+    done < "$YTFZF_SUBSCRIPTIONS_FILE"
+
+    return 0
+}

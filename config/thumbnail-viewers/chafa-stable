@@ -1,0 +1,20 @@
+#!/bin/sh
+
+case "$1" in
+    view)
+        sleep 0.10
+
+        image="$2"
+        width="$5"
+        height="$6"
+
+        [ -f "$image" ] || exit 0
+
+        chafa \
+            --size="${width}x${height}" \
+            "$image"
+        ;;
+
+    start|stop|no-img)
+        ;;
+esac

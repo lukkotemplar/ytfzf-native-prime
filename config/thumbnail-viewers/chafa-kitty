@@ -1,0 +1,42 @@
+#!/bin/sh
+
+tty=/dev/tty
+
+case "$1" in
+    start)
+        ;;
+
+    stop|no-img)
+        # Borra las imágenes gráficas visibles de Kitty
+        printf '\033_Ga=d,q=2\033\\' > "$tty"
+        ;;
+
+    view)
+        img="$2"
+        x="${3:-0}"
+        y="${4:-0}"
+        w="${5:-40}"
+        h="${6:-20}"
+
+        {
+            # Quitar la miniatura anterior
+            printf '\033_Ga=d,q=2\033\\'
+
+            # Guardar posición del cursor
+            printf '\0337'
+
+            # Ir a la zona de preview
+            printf '\033[%d;%dH' "$((y + 1))" "$((x + 1))"
+
+            # Imagen REAL mediante Kitty Graphics Protocol
+            chafa \
+                --format=kitty \
+                --size="${w}x${h}" \
+                --relative=on \
+                "$img"
+
+            # Restaurar cursor
+            printf '\0338'
+        } > "$tty"
+        ;;
+esac

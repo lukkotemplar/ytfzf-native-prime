@@ -1,0 +1,39 @@
+#!/bin/sh
+
+scrape_search_ytdlp() {
+    query="$1"
+    output_json_file="$2"
+
+    tmp_jsonl="${session_temp_dir}/search-ytdlp-$$.jsonl"
+
+    yt-dlp \
+        --flat-playlist \
+        --dump-json \
+        --no-warnings \
+        "ytsearch40:$query" > "$tmp_jsonl"
+
+    [ -s "$tmp_jsonl" ] || return 1
+
+    jq -s '
+        map(
+            select(.id != null) |
+            {
+                scraper: "search_ytdlp",
+                ID: .id,
+                url: ("https://www.youtube.com/watch?v=" + .id),
+                title: (.title // "(sin título)"),
+
+                channel: (
+                    if (.channel // "") != "" then
+                        .channel
+                    elif (.uploader // "") != "" then
+                        .uploader
+                    else
+                        ""
+                    end
+                ),
+		thumbs: ("https://i.ytimg.com/vi/" + .id + "/hqdefault.jpg")
+            }
+        )
+    ' "$tmp_jsonl" > "$output_json_file"
+}
