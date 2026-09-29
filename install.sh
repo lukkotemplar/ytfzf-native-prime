@@ -10,15 +10,94 @@ CONFIG_DIR="$HOME/.config/ytfzf-prime"
 
 echo "==> Repository: $ROOT"
 
-echo "==> Installing dependencies"
-sudo pacman -S --needed \
-    mpv \
-    yt-dlp \
-    jq \
-    fzf \
-    curl \
-    chafa \
-    python
+echo "==> Detecting package manager"
+
+if command -v pacman >/dev/null 2>&1; then
+    DISTRO="Arch-based"
+    PKG_MANAGER="pacman"
+
+elif command -v apt >/dev/null 2>&1; then
+    DISTRO="Debian-based"
+    PKG_MANAGER="apt"
+
+else
+    DISTRO="unknown"
+    PKG_MANAGER=""
+fi
+
+echo "==> System: $DISTRO"
+
+echo "==> Checking dependencies"
+DEPS=(
+    mpv
+    yt-dlp
+    jq
+    fzf
+    curl
+    chafa
+)
+
+MISSING=()
+
+for dep in "${DEPS[@]}"; do
+    if ! command -v "$dep" >/dev/null 2>&1; then
+        MISSING+=("$dep")
+    fi
+done
+
+if ! command -v python3 >/dev/null 2>&1 &&
+   ! command -v python >/dev/null 2>&1; then
+    MISSING+=("python")
+fi
+
+if ((${#MISSING[@]} == 0)); then
+    echo "==> All dependencies are installed"
+
+elif [[ "$PKG_MANAGER" == "pacman" ]]; then
+    echo "==> Missing dependencies: ${MISSING[*]}"
+
+    PACKAGES=()
+
+    for dep in "${MISSING[@]}"; do
+        case "$dep" in
+            python)
+                PACKAGES+=("python")
+                ;;
+            *)
+                PACKAGES+=("$dep")
+                ;;
+        esac
+    done
+
+    echo "==> Installing dependencies with pacman"
+    sudo pacman -S --needed "${PACKAGES[@]}"
+
+elif [[ "$PKG_MANAGER" == "apt" ]]; then
+    echo "==> Missing dependencies: ${MISSING[*]}"
+
+    PACKAGES=()
+
+    for dep in "${MISSING[@]}"; do
+        case "$dep" in
+            python)
+                PACKAGES+=("python3")
+                ;;
+            *)
+                PACKAGES+=("$dep")
+                ;;
+        esac
+    done
+
+    echo "==> Installing dependencies with apt"
+    sudo apt update
+    sudo apt install -y "${PACKAGES[@]}"
+
+else
+    echo "Please install the following dependencies manually:"
+    printf '  %s\n' "${MISSING[@]}"
+    echo
+    exit 1
+fi
 
 echo "==> Creating directories"
 mkdir -p \
