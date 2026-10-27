@@ -1,0 +1,15 @@
+#!/bin/bash
+if [[ ! -n "$DISPLAY" ]]; then
+echo "not in gfx env"
+elif ! ping -W 2 -c 1 1.1.1.1 &>/dev/null; then
+echo "verify your internet connection and try again."
+else
+if [[ "$1" == "" ]]; then
+echo "please enter a search term"
+else
+tput civis
+clear
+ytfzf-prime "$1"
+tput cnorm
+fi
+fi
